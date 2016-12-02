@@ -14,7 +14,9 @@ public class TestPuObject {
 		profile.set("age", 28);
 		profile.set("height", 1.75f);
 
-		PuArray languages = PuArrayList.fromObject(Arrays.asList("Tiếng Việt", "English", 1000l));
+		PuObject value = new PuObject();
+		value.set("key", new byte[] { 1, 2, 3, 4, 5 });
+		PuArray languages = PuArrayList.fromObject(Arrays.asList("Tiếng Việt", "English", 1000l, value));
 
 		PuObject contact = new PuObject();
 		contact.set("profile", profile);

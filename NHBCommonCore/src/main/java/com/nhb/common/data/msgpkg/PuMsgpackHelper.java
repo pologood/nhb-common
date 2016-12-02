@@ -62,9 +62,11 @@ public class PuMsgpackHelper {
 	public static PuElement unpack(MessageUnpacker unpacker) throws IOException {
 		PuElement value = null;
 		MessageFormat format = unpacker.getNextFormat();
-		if (format.getValueType() == ValueType.MAP) {
+		if (format.getValueType() == ValueType.BINARY) {
+			value = new PuValue(unpacker.unpackValue().asBinaryValue().asByteArray());
+		} else if (format.getValueType() == ValueType.MAP) {
 			PuObject map = new PuObject();
-			unpackMap(unpacker, map);
+			unpackObject(unpacker, map);
 			value = map;
 		} else if (format.getValueType() == ValueType.ARRAY) {
 			PuArray array = new PuArrayList();
@@ -76,7 +78,7 @@ public class PuMsgpackHelper {
 		return value;
 	}
 
-	public static void unpackMap(MessageUnpacker unpacker, PuObjectRW mapHolder) throws IOException {
+	public static void unpackObject(MessageUnpacker unpacker, PuObjectRW mapHolder) throws IOException {
 		if (unpacker == null || mapHolder == null) {
 			throw new NullPointerException("Both unpacker and map holder must be not-null");
 		}
@@ -133,7 +135,7 @@ public class PuMsgpackHelper {
 		case POSFIXINT:
 			return new PuValue(value.asNumberValue().toByte());
 		default:
-			throw new UnsupportedTypeException("Expected primitive value");
+			throw new UnsupportedTypeException("Expected primitive value, got " + format);
 		}
 	}
 
@@ -146,7 +148,7 @@ public class PuMsgpackHelper {
 		} else if (value instanceof PuArray) {
 			packArray((PuArray) value, packer);
 		} else if (value instanceof PuObjectRO) {
-			packMap((PuObjectRO) value, packer);
+			packObject((PuObjectRO) value, packer);
 		} else {
 			throw new IllegalArgumentException("Support only primitive type, array/collection and map");
 		}
@@ -182,7 +184,7 @@ public class PuMsgpackHelper {
 			packArray(obj.getPuArray(), packer);
 			break;
 		case PUOBJECT:
-			packMap(obj.getPuObject(), packer);
+			packObject(obj.getPuObject(), packer);
 			break;
 		case RAW:
 			packer.packValue(new ImmutableBinaryValueImpl(obj.getRaw()));
@@ -205,7 +207,7 @@ public class PuMsgpackHelper {
 		}
 	}
 
-	public static void packMap(PuObjectRO map, MessagePacker packer) throws IOException {
+	public static void packObject(PuObjectRO map, MessagePacker packer) throws IOException {
 		packer.packMapHeader(map.size());
 		for (Entry<String, PuValue> entry : map) {
 			packer.packString(entry.getKey());
