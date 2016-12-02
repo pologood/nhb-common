@@ -5,14 +5,14 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.rabbitmq.client.AMQP.BasicProperties;
 import com.nhb.common.async.BaseRPCFuture;
 import com.nhb.common.async.RPCFuture;
 import com.nhb.common.data.PuElement;
-import com.nhb.common.data.msgpkg.PuElementTemplate;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.messaging.rabbit.RabbitMQQueueConfig;
 import com.nhb.messaging.rabbit.connection.RabbitMQConnection;
 import com.nhb.messaging.rabbit.connection.RabbitMQConnectionPool;
+import com.rabbitmq.client.AMQP.BasicProperties;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Consumer;
 import com.rabbitmq.client.DefaultConsumer;
@@ -79,7 +79,7 @@ public class RabbitMQRoutingRPCProducer extends RabbitMQProducer<RPCFuture<PuEle
 				BaseRPCFuture<PuElement> future = futures.get(corrId);
 				if (future != null) {
 					try {
-						future.set(PuElementTemplate.getInstance().read(body));
+						future.set(PuMsgpackHelper.unpack(body));
 						future.done();
 					} finally {
 						RabbitMQRoutingRPCProducer.this.futures.remove(corrId);

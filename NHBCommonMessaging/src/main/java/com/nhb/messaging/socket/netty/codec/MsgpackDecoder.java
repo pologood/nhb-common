@@ -3,14 +3,11 @@ package com.nhb.messaging.socket.netty.codec;
 import java.io.EOFException;
 import java.util.List;
 
-import org.msgpack.MessagePack;
-import org.msgpack.unpacker.Unpacker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.nhb.common.Loggable;
-import com.nhb.common.data.PuElement;
-import com.nhb.common.data.msgpkg.PuElementTemplate;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.common.exception.UnsupportedTypeException;
 
 import io.netty.buffer.ByteBuf;
@@ -34,20 +31,12 @@ public class MsgpackDecoder extends ByteToMessageDecoder implements Loggable {
 		return LoggerFactory.getLogger(name);
 	}
 
-	private final MessagePack msgpack;
-
-	private MsgpackDecoder() {
-		this.msgpack = new MessagePack();
-	}
-
 	@Override
 	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
 		in.markReaderIndex();
-		ByteBufInputStream stream = new ByteBufInputStream(in);
+		ByteBufInputStream inputStream = new ByteBufInputStream(in);
 		try {
-			Unpacker unpacker = msgpack.createUnpacker(stream);
-			PuElement v = PuElementTemplate.getInstance().read(unpacker, null);
-			out.add(v);
+			out.add(PuMsgpackHelper.unpack(inputStream));
 		} catch (EOFException e) {
 			in.resetReaderIndex();
 		} catch (UnsupportedTypeException ex) {

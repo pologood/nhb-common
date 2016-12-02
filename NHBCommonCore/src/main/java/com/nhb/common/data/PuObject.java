@@ -1,6 +1,5 @@
 package com.nhb.common.data;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -10,12 +9,9 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import org.msgpack.MessagePack;
-import org.msgpack.packer.Packer;
-import org.msgpack.unpacker.Unpacker;
 import org.w3c.dom.Node;
 
-import com.nhb.common.data.msgpkg.PuObjectTemplate;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.common.utils.ArrayUtils;
 import com.nhb.common.utils.ObjectUtils;
 import com.nhb.common.utils.PrimitiveTypeUtils;
@@ -27,7 +23,6 @@ import net.minidev.json.parser.ParseException;
 
 public class PuObject extends BaseEventDispatcher implements PuObjectRW, Iterable<Entry<String, PuValue>> {
 
-	private static final MessagePack msgpkg = new MessagePack();
 	private static final long serialVersionUID = 1982533316259989399L;
 	private Map<String, PuValue> values = new HashMap<>();
 
@@ -40,16 +35,14 @@ public class PuObject extends BaseEventDispatcher implements PuObjectRW, Iterabl
 			if (bytes.length == 0) {
 				return null;
 			}
-			Unpacker unpacker = msgpkg.createUnpacker(new ByteArrayInputStream(bytes));
 			try {
-				return (PuObject) PuObjectTemplate.getInstance().read(unpacker, null);
+				return (PuObject) PuMsgpackHelper.unpack(bytes);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
 		} else if (obj instanceof InputStream) {
-			Unpacker unpacker = msgpkg.createUnpacker((InputStream) obj);
 			try {
-				return (PuObject) PuObjectTemplate.getInstance().read(unpacker, null);
+				return (PuObject) PuMsgpackHelper.unpack((InputStream) obj);
 			} catch (IOException e) {
 				throw new RuntimeException(e);
 			}
@@ -472,9 +465,8 @@ public class PuObject extends BaseEventDispatcher implements PuObjectRW, Iterabl
 
 	@Override
 	public void writeTo(OutputStream out) {
-		Packer packer = msgpkg.createPacker(out);
 		try {
-			PuObjectTemplate.getInstance().write(packer, this);
+			PuMsgpackHelper.pack(this, out);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

@@ -6,16 +6,9 @@ import java.io.OutputStream;
 import java.io.Serializable;
 import java.util.Base64;
 
-import org.msgpack.MessagePack;
-import org.msgpack.MessageTypeException;
-import org.msgpack.packer.Packer;
-import org.msgpack.type.Value;
-
-import com.nhb.common.data.msgpkg.PuElementTemplate;
-import com.nhb.common.exception.UnsupportedTypeException;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.common.utils.ArrayUtils;
 import com.nhb.common.utils.PrimitiveTypeUtils;
-import com.nhb.common.utils.StringUtils;
 
 import net.minidev.json.parser.JSONParser;
 import net.minidev.json.parser.ParseException;
@@ -307,29 +300,6 @@ public class PuValue implements PuElement, Serializable {
 			return (new PuValue(value));
 		} else if (ArrayUtils.isArrayOrCollection(value.getClass())) {
 			return new PuValue(PuArrayList.fromObject(value));
-		} else if (value instanceof Value) {
-			switch (((Value) value).getType()) {
-			case NIL:
-				return new PuValue(null, PuDataType.NULL);
-			case BOOLEAN:
-				return new PuValue(((Value) value).asBooleanValue(), PuDataType.BOOLEAN);
-			case FLOAT:
-				try {
-					return new PuValue(((Value) value).asFloatValue().floatValue(), PuDataType.FLOAT);
-				} catch (MessageTypeException ex) {
-					return new PuValue(((Value) value).asFloatValue().doubleValue(), PuDataType.LONG);
-				}
-			case INTEGER:
-				try {
-					return new PuValue(((Value) value).asIntegerValue().intValue(), PuDataType.INTEGER);
-				} catch (MessageTypeException ex) {
-					return new PuValue(((Value) value).asIntegerValue().longValue(), PuDataType.LONG);
-				}
-			case RAW:
-				return new PuValue(((Value) value).asRawValue().getByteArray(), PuDataType.RAW);
-			default:
-				throw new UnsupportedTypeException("Map and Array cannot be read inside PuValue");
-			}
 		} else {
 			return (new PuValue(PuObject.fromObject(value)));
 		}
@@ -338,22 +308,18 @@ public class PuValue implements PuElement, Serializable {
 	@Override
 	public String toString() {
 		if (this.getData() instanceof byte[]) {
-			String str = new String((byte[]) this.getData());
-			if (!StringUtils.isPrinable(str)) {
-				StringBuilder sb = new StringBuilder();
-				sb.append("[");
-				byte[] bytes = (byte[]) this.getData();
-				for (int i = 0; i < bytes.length; i++) {
-					Byte b = bytes[i];
-					if (sb.length() > 1) {
-						sb.append(",");
-					}
-					sb.append(b.toString());
+			StringBuilder sb = new StringBuilder();
+			sb.append("[");
+			byte[] bytes = (byte[]) this.getData();
+			for (int i = 0; i < bytes.length; i++) {
+				Byte b = bytes[i];
+				if (sb.length() > 1) {
+					sb.append(",");
 				}
-				sb.append("]");
-				return sb.toString();
+				sb.append(b.toString());
 			}
-			return str;
+			sb.append("]");
+			return sb.toString();
 		}
 		return this.getData() == null ? null : this.getData().toString();
 	}
@@ -375,13 +341,10 @@ public class PuValue implements PuElement, Serializable {
 		return PuXmlHelper.generateXML(this);
 	}
 
-	private static final MessagePack msgpkg = new MessagePack();
-
 	@Override
 	public void writeTo(OutputStream out) {
-		Packer packer = msgpkg.createPacker(out);
 		try {
-			PuElementTemplate.getInstance().write(packer, this);
+			PuMsgpackHelper.pack(this, out);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

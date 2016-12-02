@@ -2,7 +2,9 @@ package com.nhb.common.utils;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class ArrayUtils {
 
@@ -113,5 +115,34 @@ public final class ArrayUtils {
 			arr[i] = (T) list.get(i);
 		}
 		return arr;
+	}
+	
+	@SuppressWarnings("unchecked")
+	public static <T> Iterator<T> iterator(Object arrayOrCollection) {
+		if (arrayOrCollection == null) {
+			return null;
+		}
+
+		if (arrayOrCollection.getClass().isArray()) {
+			final int length = length(arrayOrCollection);
+			final AtomicInteger current = new AtomicInteger(0);
+			return new Iterator<T>() {
+
+				@Override
+				public boolean hasNext() {
+					return current.get() < length;
+				}
+
+				@Override
+				public T next() {
+					return (T) Array.get(arrayOrCollection, current.getAndIncrement());
+				}
+			};
+		} else if (arrayOrCollection instanceof Collection) {
+			return ((Collection<T>) arrayOrCollection).iterator();
+		} else {
+			throw new IllegalArgumentException(
+					"cannot perform foreach for unsupported type: " + arrayOrCollection.getClass().getName());
+		}
 	}
 }

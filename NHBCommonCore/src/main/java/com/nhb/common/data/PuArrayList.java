@@ -1,19 +1,16 @@
 package com.nhb.common.data;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.msgpack.MessagePack;
-import org.msgpack.packer.Packer;
-
-import com.nhb.common.data.msgpkg.PuArrayTemplate;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.common.utils.ArrayUtils;
-import com.nhb.common.utils.PrimitiveTypeUtils;
 import com.nhb.common.utils.ArrayUtils.ForeachCallback;
+import com.nhb.common.utils.PrimitiveTypeUtils;
 
 import net.minidev.json.JSONArray;
 import net.minidev.json.parser.JSONParser;
@@ -21,7 +18,6 @@ import net.minidev.json.parser.ParseException;
 
 public class PuArrayList extends ArrayList<PuValue> implements PuArray {
 
-	private static final MessagePack msgpkg = new MessagePack();
 	private static final long serialVersionUID = 1L;
 
 	public static PuArray fromObject(Object data) {
@@ -30,11 +26,18 @@ public class PuArrayList extends ArrayList<PuValue> implements PuArray {
 		} else if (data instanceof byte[]) {
 			byte[] bytes = (byte[]) data;
 			try {
-				return (PuArray) PuArrayTemplate.getInstance()
-						.read(msgpkg.createUnpacker(new ByteArrayInputStream(bytes)), null);
+				return PuMsgpackHelper.unpack(bytes);
+			} catch (IOException e) {
+				throw new RuntimeException("Error occurs while trying to decode byte array as message pack to PuArray",
+						e);
+			}
+		} else if (data instanceof InputStream) {
+			InputStream inputStream = (InputStream) data;
+			try {
+				return PuMsgpackHelper.unpack(inputStream);
 			} catch (IOException e) {
 				throw new RuntimeException(
-						"Error occurs while trying to deserialize byte array as message pack to PuArray", e);
+						"Error occurs while trying to decode input stream as message pack to PuArray", e);
 			}
 		} else if (data instanceof PuArray) {
 			PuArray arr = (PuArray) data;
@@ -229,9 +232,8 @@ public class PuArrayList extends ArrayList<PuValue> implements PuArray {
 
 	@Override
 	public void writeTo(OutputStream os) {
-		Packer packer = msgpkg.createPacker(os);
 		try {
-			PuArrayTemplate.getInstance().write(packer, this);
+			PuMsgpackHelper.pack(this, os);
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 		}

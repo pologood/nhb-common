@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.nhb.common.async.BaseRPCFuture;
 import com.nhb.common.async.RPCFuture;
 import com.nhb.common.data.PuElement;
-import com.nhb.common.data.msgpkg.PuElementTemplate;
+import com.nhb.common.data.msgpkg.PuMsgpackHelper;
 import com.nhb.messaging.rabbit.RabbitMQQueueConfig;
 import com.nhb.messaging.rabbit.connection.RabbitMQConnection;
 import com.nhb.messaging.rabbit.connection.RabbitMQConnectionPool;
@@ -72,7 +72,7 @@ public class RabbitMQRPCProducer extends RabbitMQProducer<RPCFuture<PuElement>> 
 				if (future != null) {
 					try {
 						try {
-							future.set(PuElementTemplate.getInstance().read(body));
+							future.set(PuMsgpackHelper.unpack(body));
 						} catch (Exception ex) {
 							getLogger().error("Error while deserialize response data, queue name: "
 									+ getQueueConfig().getQueueName(), ex);
