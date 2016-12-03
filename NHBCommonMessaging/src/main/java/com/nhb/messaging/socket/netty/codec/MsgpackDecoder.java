@@ -1,14 +1,13 @@
 package com.nhb.messaging.socket.netty.codec;
 
-import java.io.EOFException;
 import java.util.List;
 
+import org.msgpack.core.MessageInsufficientBufferException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.nhb.common.Loggable;
 import com.nhb.common.data.msgpkg.PuMsgpackHelper;
-import com.nhb.common.exception.UnsupportedTypeException;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
@@ -37,11 +36,10 @@ public class MsgpackDecoder extends ByteToMessageDecoder implements Loggable {
 		ByteBufInputStream inputStream = new ByteBufInputStream(in);
 		try {
 			out.add(PuMsgpackHelper.unpack(inputStream));
-		} catch (EOFException e) {
+		} catch (MessageInsufficientBufferException ex) {
 			in.resetReaderIndex();
-		} catch (UnsupportedTypeException ex) {
-			// in.resetReaderIndex();
-			// ignore this error
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 }

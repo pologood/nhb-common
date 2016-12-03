@@ -28,6 +28,82 @@ import com.nhb.common.utils.ArrayUtils;
 
 public class PuMsgpackHelper {
 
+	public static void pack(PuElement value, MessagePacker packer) throws IOException {
+		if (value == null || packer == null) {
+			throw new NullPointerException("Both value and packer must be not-null");
+		}
+		if (value instanceof PuValue) {
+			packPrimitive((PuValue) value, packer);
+		} else if (value instanceof PuArray) {
+			packArray((PuArray) value, packer);
+		} else if (value instanceof PuObjectRO) {
+			packObject((PuObjectRO) value, packer);
+		} else {
+			throw new IllegalArgumentException("Support only primitive type, array/collection and map");
+		}
+	}
+
+	public static void packPrimitive(PuValue obj, MessagePacker packer) throws IOException {
+		switch (obj.getType()) {
+		case BOOLEAN:
+			packer.packBoolean(obj.getBoolean());
+			break;
+		case BYTE:
+			packer.packByte(obj.getByte());
+			break;
+		case CHARACTER:
+			packer.packInt(obj.getCharacter());
+			break;
+		case DOUBLE:
+			packer.packDouble(obj.getDouble());
+			break;
+		case FLOAT:
+			packer.packFloat(obj.getFloat());
+			break;
+		case INTEGER:
+			packer.packInt(obj.getInteger());
+			break;
+		case LONG:
+			packer.packLong(obj.getLong());
+			break;
+		case NULL:
+			packer.packNil();
+			break;
+		case PUARRAY:
+			packArray(obj.getPuArray(), packer);
+			break;
+		case PUOBJECT:
+			packObject(obj.getPuObject(), packer);
+			break;
+		case RAW:
+			packer.packValue(new ImmutableBinaryValueImpl(obj.getRaw()));
+			break;
+		case SHORT:
+			packer.packShort(obj.getShort());
+			break;
+		case STRING:
+			packer.packString(obj.getString());
+			break;
+		}
+	}
+
+	public static void packArray(PuArray array, MessagePacker packer) throws IOException {
+		packer.packArrayHeader(ArrayUtils.length(array));
+		Iterator<PuValue> it = ArrayUtils.iterator(array);
+		while (it.hasNext()) {
+			PuValue element = it.next();
+			pack(element, packer);
+		}
+	}
+
+	public static void packObject(PuObjectRO map, MessagePacker packer) throws IOException {
+		packer.packMapHeader(map.size());
+		for (Entry<String, PuValue> entry : map) {
+			packer.packString(entry.getKey());
+			pack(entry.getValue(), packer);
+		}
+	}
+
 	public static byte[] pack(PuElement value) throws IOException {
 		try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
 			pack(value, out);
@@ -41,6 +117,7 @@ public class PuMsgpackHelper {
 		}
 		try (MessagePacker packer = MessagePack.newDefaultPacker(out)) {
 			pack(value, packer);
+			packer.flush();
 		}
 	}
 
@@ -138,81 +215,4 @@ public class PuMsgpackHelper {
 			throw new UnsupportedTypeException("Expected primitive value, got " + format);
 		}
 	}
-
-	public static void pack(PuElement value, MessagePacker packer) throws IOException {
-		if (value == null || packer == null) {
-			throw new NullPointerException("Both value and packer must be not-null");
-		}
-		if (value instanceof PuValue) {
-			packPrimitive((PuValue) value, packer);
-		} else if (value instanceof PuArray) {
-			packArray((PuArray) value, packer);
-		} else if (value instanceof PuObjectRO) {
-			packObject((PuObjectRO) value, packer);
-		} else {
-			throw new IllegalArgumentException("Support only primitive type, array/collection and map");
-		}
-	}
-
-	public static void packPrimitive(PuValue obj, MessagePacker packer) throws IOException {
-		switch (obj.getType()) {
-		case BOOLEAN:
-			packer.packBoolean(obj.getBoolean());
-			break;
-		case BYTE:
-			packer.packByte(obj.getByte());
-			break;
-		case CHARACTER:
-			packer.packInt(obj.getCharacter());
-			break;
-		case DOUBLE:
-			packer.packDouble(obj.getDouble());
-			break;
-		case FLOAT:
-			packer.packFloat(obj.getFloat());
-			break;
-		case INTEGER:
-			packer.packInt(obj.getInteger());
-			break;
-		case LONG:
-			packer.packLong(obj.getLong());
-			break;
-		case NULL:
-			packer.packNil();
-			break;
-		case PUARRAY:
-			packArray(obj.getPuArray(), packer);
-			break;
-		case PUOBJECT:
-			packObject(obj.getPuObject(), packer);
-			break;
-		case RAW:
-			packer.packValue(new ImmutableBinaryValueImpl(obj.getRaw()));
-			break;
-		case SHORT:
-			packer.packShort(obj.getShort());
-			break;
-		case STRING:
-			packer.packString(obj.getString());
-			break;
-		}
-	}
-
-	public static void packArray(PuArray array, MessagePacker packer) throws IOException {
-		packer.packArrayHeader(ArrayUtils.length(array));
-		Iterator<PuValue> it = ArrayUtils.iterator(array);
-		while (it.hasNext()) {
-			PuValue element = it.next();
-			pack(element, packer);
-		}
-	}
-
-	public static void packObject(PuObjectRO map, MessagePacker packer) throws IOException {
-		packer.packMapHeader(map.size());
-		for (Entry<String, PuValue> entry : map) {
-			packer.packString(entry.getKey());
-			pack(entry.getValue(), packer);
-		}
-	}
-
 }

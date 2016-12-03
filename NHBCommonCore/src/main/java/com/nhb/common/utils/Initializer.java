@@ -14,8 +14,11 @@ public final class Initializer {
 	}
 
 	public static final void bootstrap() {
-		String systemConfiguration = FileSystemUtils.createPathFrom(FileSystemUtils.getBasePath(), "conf",
-				"system.properties");
+		String systemConfiguration = System.getProperty("system.propertiesFile");
+		if (systemConfiguration == null) {
+			systemConfiguration = FileSystemUtils.createPathFrom(FileSystemUtils.getBasePath(), "conf",
+					"system.properties");
+		}
 		File systemConfigFile = new File(systemConfiguration);
 		if (systemConfigFile.exists() && systemConfigFile.isFile()) {
 			initSystemProperties(systemConfigFile);

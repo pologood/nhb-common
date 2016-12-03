@@ -56,6 +56,7 @@ public class MsgpackGenericUtils {
 		}
 		try (MessagePacker packer = MessagePack.newDefaultPacker(out)) {
 			pack(value, packer);
+			packer.flush();
 		}
 	}
 
