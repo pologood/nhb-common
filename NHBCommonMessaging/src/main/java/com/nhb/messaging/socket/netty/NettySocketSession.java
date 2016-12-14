@@ -23,6 +23,11 @@ class NettySocketSession extends ChannelInboundHandlerAdapter implements Loggabl
 	}
 
 	@Override
+	public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+		ctx.flush();
+	}
+
+	@Override
 	public void channelActive(ChannelHandlerContext ctx) throws Exception {
 		this.client.connectionEstablished();
 	}
