@@ -155,6 +155,13 @@ public class PuMsgpackHelper {
 		return value;
 	}
 
+	public static void unpackObject(InputStream inputStream, PuObjectRW mapHolder) throws IOException {
+		if (inputStream == null) {
+			throw new NullPointerException("inputStream cannot be null");
+		}
+		unpackObject(MessagePack.newDefaultUnpacker(inputStream), mapHolder);
+	}
+
 	public static void unpackObject(MessageUnpacker unpacker, PuObjectRW mapHolder) throws IOException {
 		if (unpacker == null || mapHolder == null) {
 			throw new NullPointerException("Both unpacker and map holder must be not-null");
@@ -164,6 +171,13 @@ public class PuMsgpackHelper {
 			String key = unpacker.unpackString();
 			mapHolder.set(key, unpack(unpacker));
 		}
+	}
+
+	public static void unpackArray(InputStream inputStream, PuArray arrayHolder) throws IOException {
+		if (inputStream == null) {
+			throw new NullPointerException("Input stream cannot be null");
+		}
+		unpackArray(MessagePack.newDefaultUnpacker(inputStream), arrayHolder);
 	}
 
 	public static void unpackArray(MessageUnpacker unpacker, PuArray arrayHolder) throws IOException {
