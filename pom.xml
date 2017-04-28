@@ -6,7 +6,6 @@
 	<groupId>nhb.common</groupId>
 	<artifactId>nhb-common-base</artifactId>
 	<packaging>pom</packaging>
-	<version>1.2.2</version>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -141,4 +140,5 @@
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
+	<version>2.0.0</version>
 </project>
