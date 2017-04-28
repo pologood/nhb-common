@@ -97,7 +97,11 @@ public class BaseRPCFuture<V> extends BaseEventDispatcher implements RPCFuture<V
 		}
 		this.doneSignal.countDown();
 		if (this.callable != null) {
-			this.callable.apply(this.value);
+			try {
+				this.callable.apply(this.value);
+			} catch (Exception e) {
+				getLogger().error("Error while execute callback", e);
+			}
 		}
 	}
 
@@ -172,6 +176,9 @@ public class BaseRPCFuture<V> extends BaseEventDispatcher implements RPCFuture<V
 
 	@Override
 	public void setTimeout(long timeout, TimeUnit unit) {
+		if (this.isDone()) {
+			return;
+		}
 		if (this.monitorFuture == null) {
 			synchronized (this) {
 				if (this.monitorFuture == null) {

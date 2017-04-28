@@ -5,7 +5,7 @@ import com.nhb.common.predicate.utils.NumberComparator;
 import com.nhb.common.predicate.value.ObjectDependence;
 import com.nhb.common.predicate.value.Value;
 
-public class BetweenIncludeRight implements Predicate {
+public class NotBetweenIncludeRight implements Predicate {
 
 	private static final long serialVersionUID = 4810722470454943505L;
 
@@ -14,7 +14,7 @@ public class BetweenIncludeRight implements Predicate {
 	private Value<? extends Number> upperBound;
 	private Value<? extends Number> value;
 
-	public BetweenIncludeRight(Value<? extends Number> value, Value<? extends Number> lowerBound,
+	public NotBetweenIncludeRight(Value<? extends Number> value, Value<? extends Number> lowerBound,
 			Value<? extends Number> upperBound) {
 		this.value = value;
 		this.lowerBound = lowerBound;
@@ -26,12 +26,12 @@ public class BetweenIncludeRight implements Predicate {
 		if (this.value instanceof ObjectDependence) {
 			((ObjectDependence) this.value).fill(object);
 		}
-		return comparator.compare(this.value.get(), this.lowerBound.get()) > 0
-				&& comparator.compare(this.value.get(), this.upperBound.get()) <= 0;
+		return comparator.compare(this.value.get(), this.lowerBound.get()) <= 0
+				|| comparator.compare(this.value.get(), this.upperBound.get()) > 0;
 	}
 
 	@Override
 	public String toString() {
-		return this.value + " between " + this.lowerBound.toString() + " and " + this.upperBound;
+		return this.value + " not between " + this.lowerBound.toString() + " and " + this.upperBound;
 	}
 }

@@ -1,19 +1,20 @@
 package com.nhb.messaging.kafka.consumer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
@@ -22,6 +23,9 @@ import com.nhb.common.data.PuElement;
 import com.nhb.eventdriven.impl.BaseEventDispatcher;
 import com.nhb.messaging.kafka.event.KafkaEvent;
 import com.nhb.messaging.kafka.serialization.KafkaPuElementDeserializer;
+
+import lombok.Getter;
+import lombok.Setter;
 
 public class KafkaMessageConsumer extends BaseEventDispatcher {
 
@@ -34,9 +38,13 @@ public class KafkaMessageConsumer extends BaseEventDispatcher {
 	private KafkaConsumer<byte[], PuElement> consumer;
 
 	private int pollTimeout = 100;
-	private Thread poolingThead;
+	private Thread pollingThead;
 
 	private Properties properties;
+
+	@Setter
+	@Getter
+	private int minBatchingSize = 1;
 
 	private final Map<TopicPartition, Long> seekConfigs = new ConcurrentHashMap<>();
 
@@ -45,7 +53,10 @@ public class KafkaMessageConsumer extends BaseEventDispatcher {
 			throw new IllegalArgumentException("Properties for kafka message consumer cannot be null");
 		}
 		if (topics == null || topics.size() == 0) {
-			throw new IllegalArgumentException("Topics cannot be empty");
+			getLogger().warn(//
+					"***************************************************************************************" + //
+							"* TOPIC FOR KAFKA MESSAGE CONSUMER WAS NOT SET, YOU MUST ASSIGN OR SUBSCRIBE MANUALLY *" + //
+							"***************************************************************************************");
 		}
 
 		properties.put("key.deserializer", ByteArrayDeserializer.class.getName());
@@ -58,28 +69,68 @@ public class KafkaMessageConsumer extends BaseEventDispatcher {
 		this.pollTimeout = pollTimeout;
 	}
 
+	public void assign(Collection<TopicPartition> partitions) {
+		this.consumer.assign(partitions);
+	}
+
+	public void subscribe(Collection<String> topics) {
+		this.consumer.subscribe(topics);
+	}
+
+	public void subscribe(String... topics) {
+		this.subscribe(Arrays.asList(topics));
+	}
+
+	public Set<TopicPartition> getTopicPartitions() {
+		return this.consumer.assignment();
+	}
+
+	private Collection<PartitionInfo> getPartitionFor(String topic) {
+		if (topic != null) {
+			return this.consumer.partitionsFor(topic);
+		}
+		return null;
+	}
+
+	public Map<String, Collection<PartitionInfo>> getPartitionInfos(String... topics) {
+		if (topics != null) {
+			Map<String, Collection<PartitionInfo>> results = new HashMap<>();
+			for (String topic : topics) {
+				results.put(topic, getPartitionFor(topic));
+			}
+			return results;
+		}
+		return null;
+	}
+
 	public void seek(TopicPartition partition, long offset) {
 		if (this.isRunning()) {
-			throw new IllegalStateException("Cannot seek while consumer is running");
+			this.consumer.seek(partition, offset);
+			this.consumer.wakeup();
+		} else {
+			this.seekConfigs.put(partition, offset);
 		}
-		this.seekConfigs.put(partition, offset);
 	}
 
 	public void seekToBeginning(Collection<TopicPartition> partitions) {
 		if (this.isRunning()) {
-			throw new IllegalStateException("Cannot seek while consumer is running");
-		}
-		for (TopicPartition topicPartition : partitions) {
-			this.seekConfigs.put(topicPartition, START_OFFSET);
+			this.consumer.seekToBeginning(partitions);
+			this.consumer.wakeup();
+		} else {
+			for (TopicPartition topicPartition : partitions) {
+				this.seekConfigs.put(topicPartition, START_OFFSET);
+			}
 		}
 	}
 
 	public void seekToEnd(Collection<TopicPartition> partitions) {
 		if (this.isRunning()) {
-			throw new IllegalStateException("Cannot seek while consumer is running");
-		}
-		for (TopicPartition topicPartition : partitions) {
-			this.seekConfigs.put(topicPartition, END_OFFSET);
+			this.consumer.seekToEnd(partitions);
+			this.consumer.wakeup();
+		} else {
+			for (TopicPartition topicPartition : partitions) {
+				this.seekConfigs.put(topicPartition, END_OFFSET);
+			}
 		}
 	}
 
@@ -89,61 +140,67 @@ public class KafkaMessageConsumer extends BaseEventDispatcher {
 
 	public void start() {
 		if (this.running.compareAndSet(false, true)) {
-			this.consumer.subscribe(this.topics);
-			this.poolingThead = new Thread() {
+
+			if (this.topics != null && this.topics.size() > 0) {
+				this.consumer.subscribe(this.topics);
+			}
+
+			this.pollingThead = new Thread() {
 
 				@Override
 				public void run() {
+					if (seekConfigs.size() > 0) {
+						Collection<TopicPartition> seekToEndPartitions = new ArrayList<>();
+						Collection<TopicPartition> seekToBeginningPartitions = new ArrayList<>();
+						Map<TopicPartition, Long> seekPartitions = new HashMap<>();
+
+						for (Entry<TopicPartition, Long> entry : seekConfigs.entrySet()) {
+							if (entry.getValue() == START_OFFSET) {
+								seekToBeginningPartitions.add(entry.getKey());
+							} else if (entry.getValue() == END_OFFSET) {
+								seekToEndPartitions.add(entry.getKey());
+							} else {
+								seekPartitions.put(entry.getKey(), entry.getValue());
+							}
+						}
+
+						if (seekToBeginningPartitions.size() > 0) {
+							consumer.seekToBeginning(seekToBeginningPartitions);
+						}
+						if (seekToEndPartitions.size() > 0) {
+							consumer.seekToEnd(seekToEndPartitions);
+						}
+						if (seekPartitions.size() > 0) {
+							for (Entry<TopicPartition, Long> entry : seekPartitions.entrySet()) {
+								consumer.seek(entry.getKey(), entry.getValue());
+							}
+						}
+					}
 					while (!closer.get()) {
 						try {
-							if (seekConfigs.size() > 0) {
-								Collection<TopicPartition> seekToEndPartitions = new ArrayList<>();
-								Collection<TopicPartition> seekToBeginningPartitions = new ArrayList<>();
-								Map<TopicPartition, Long> seekPartitions = new HashMap<>();
-
-								for (Entry<TopicPartition, Long> entry : seekConfigs.entrySet()) {
-									if (entry.getValue() == START_OFFSET) {
-										seekToBeginningPartitions.add(entry.getKey());
-									} else if (entry.getValue() == END_OFFSET) {
-										seekToEndPartitions.add(entry.getKey());
-									} else {
-										seekPartitions.put(entry.getKey(), entry.getValue());
-									}
-								}
-
-								if (seekToBeginningPartitions.size() > 0) {
-									consumer.seekToBeginning(seekToBeginningPartitions);
-								}
-								if (seekToEndPartitions.size() > 0) {
-									consumer.seekToEnd(seekToEndPartitions);
-								}
-								if (seekPartitions.size() > 0) {
-									for (Entry<TopicPartition, Long> entry : seekPartitions.entrySet()) {
-										consumer.seek(entry.getKey(), entry.getValue());
-									}
-								}
-							}
 							ConsumerRecords<byte[], PuElement> records = consumer.poll(pollTimeout);
-							Iterator<ConsumerRecord<byte[], PuElement>> it = records.iterator();
-							while (it.hasNext()) {
-								ConsumerRecord<byte[], PuElement> record = it.next();
-								KafkaEvent event = KafkaEvent.newInstance(record);
-								dispatchEvent(event);
-							}
+							KafkaEvent event = KafkaEvent.newInstance(records);
+							dispatchEvent(event);
 						} catch (WakeupException we) {
 							// do nothing
 						}
 					}
 				}
 			};
-			this.poolingThead.start();
+			this.pollingThead.start();
 
-			getLogger().info("Kafka Message Consumer started successfully with properties: {");
+			StringBuffer sb = new StringBuffer();
+			sb.append("Kafka Message Consumer started successfully with properties: {");
 			for (Object key : this.properties.keySet()) {
-				getLogger("pureLogger").info("\t" + key + " = " + properties.getProperty((String) key));
+				sb.append("\t" + key + " = " + properties.getProperty((String) key));
 			}
-			getLogger("pureLogger").info("}");
+			sb.append("}");
+			getLogger("pureLogger").info(sb.toString());
 		}
+	}
+
+	public long getPosition(TopicPartition partition) {
+		return this.consumer.position(partition);
 	}
 
 	public void stop() {
