@@ -311,13 +311,24 @@ public final class ObjectUtils {
 	@SuppressWarnings("unchecked")
 	public static final <T> T getFieldValue(Object obj, String fieldName) {
 		if (obj != null && fieldName != null) {
+			if (fieldName.startsWith("`")) {
+				fieldName = fieldName.substring(1);
+			}
+			if (fieldName.endsWith("`")) {
+				fieldName = fieldName.substring(0, fieldName.length() - 1);
+			}
+			if (obj instanceof Map) {
+				return (T) ((Map<String, Object>) obj).get(fieldName);
+			}
+
 			Class<?> clazz = obj.getClass();
 			Map<String, Getter> getters = classGetters.containsKey(obj.getClass()) ? classGetters.get(obj.getClass())
 					: initClassGetters(clazz);
 			if (getters.containsKey(fieldName)) {
 				return (T) getters.get(fieldName).get(obj);
 			} else {
-				throw new FieldNotFoundException();
+				throw new FieldNotFoundException(
+						"Field '" + fieldName + "' cannot be found in object type " + obj.getClass().getName());
 			}
 		}
 		throw new IllegalArgumentException("Object and fieldName must be not-null");
