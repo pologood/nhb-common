@@ -142,9 +142,9 @@ public class PuMsgpackHelper {
 		if (format.getValueType() == ValueType.BINARY) {
 			value = new PuValue(unpacker.unpackValue().asBinaryValue().asByteArray());
 		} else if (format.getValueType() == ValueType.MAP) {
-			PuObject map = new PuObject();
-			unpackObject(unpacker, map);
-			value = map;
+			PuObject object = new PuObject();
+			unpackObject(unpacker, object);
+			value = object;
 		} else if (format.getValueType() == ValueType.ARRAY) {
 			PuArray array = new PuArrayList();
 			unpackArray(unpacker, array);

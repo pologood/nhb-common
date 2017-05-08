@@ -25,6 +25,7 @@ import com.nhb.common.exception.UnsupportedTypeException;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.EmptyByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.buffer.UnpooledByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
@@ -36,74 +37,78 @@ public class MsgpackDecoder2 extends ByteToMessageDecoder implements Loggable {
 	}
 
 	private List<Object> buffer = new ArrayList<>();
-
-	@Override
-	protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-		int availableBytes = in.readableBytes();
-		getLogger().debug("******* Processing {} bytes, {} -> {}", availableBytes, in.readerIndex(), in.writerIndex());
-		ByteBufInputStream inputStream = new ByteBufInputStream(in);
-		MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(inputStream);
-
-		int totalReadBytes = 0;
-		try {
-			PuElement object = PuMsgpackHelper.unpack(unpacker);
-			while (object != null) {
-				out.add(object);
-				totalReadBytes = (int) unpacker.getTotalReadBytes();
-				object = PuMsgpackHelper.unpack(unpacker);
-			}
-		} catch (MessageInsufficientBufferException e) {
-			getLogger().error("---> Message not enough, reset index to {}", totalReadBytes);
-			in.readerIndex(totalReadBytes);
-		}
-
-		getLogger().debug("==== Readed {} object(s) from {} bytes on total {}, remaining {} bytes", out.size(),
-				totalReadBytes, availableBytes, availableBytes - totalReadBytes);
-	}
+	private ByteBuf prevRemainingBytes;
+	private MessageFormat nextFormat;
 
 	// @Override
-	// protected void decode(ChannelHandlerContext ctx, ByteBuf originalIn,
-	// List<Object> out) throws Exception {
-	//
-	// getLogger().debug("Processing new {} bytes", originalIn.readableBytes());
-	//
-	// ByteBuf in = null;
-	// if (prevRemainingBytes != null) {
-	// in = wrappedBuffer(prevRemainingBytes, originalIn);
-	// prevRemainingBytes = null;
-	// } else {
-	// in = wrappedBuffer(originalIn);
-	// }
-	//
-	// getLogger().debug("In: {} -> {}", in.readerIndex(), in.writerIndex());
+	// protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object>
+	// out) throws Exception {
+	// int availableBytes = in.readableBytes();
+	// getLogger().debug("******* Processing {} bytes, {} -> {}",
+	// availableBytes, in.readerIndex(), in.writerIndex());
 	// ByteBufInputStream inputStream = new ByteBufInputStream(in);
-	// getLogger().debug("---> Decoding byte buffer size: " +
-	// in.readableBytes());
-	// if (this.unpacker == null) {
-	// this.unpacker = MessagePack.newDefaultUnpacker(inputStream);
-	// } else {
-	// this.unpacker.reset(new InputStreamBufferInput(inputStream));
+	// MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(inputStream);
+	//
+	// int totalReadBytes = 0;
+	// try {
+	// PuElement object = this.continueUnpack(unpacker, in);
+	// while (object != null) {
+	// out.add(object);
+	// totalReadBytes = (int) unpacker.getTotalReadBytes();
+	// object = this.continueUnpack(unpacker, in);
+	// }
+	// } catch (MessageInsufficientBufferException e) {
+	// getLogger().error("---> Message not enough, reset index to {}",
+	// totalReadBytes);
+	// in.readerIndex(totalReadBytes);
 	// }
 	//
-	// PuElement unpackedObject = this.continueUnpack(unpacker, in);
-	// out.add(unpackedObject);
-	// while (unpackedObject != null) {
-	// out.add(unpackedObject);
-	// unpackedObject = this.continueUnpack(unpacker, in);
+	// getLogger().debug("==== Read {} object(s) from {} bytes on total {},
+	// remaining {} bytes", out.size(),
+	// totalReadBytes, availableBytes, availableBytes - totalReadBytes);
 	// }
-	//
-	// if (in.readableBytes() > 0) {
-	// getLogger().debug("Remaining {} bytes, current buffer {}, next format
-	// {}", in.readableBytes(), buffer,
-	// this.nextFormat);
-	// prevRemainingBytes = wrappedBuffer(in);
-	// } else {
-	// prevRemainingBytes = null;
-	// getLogger().debug("Remaining 0 byte");
-	// }
-	//
-	// originalIn.readerIndex(originalIn.writerIndex());
-	// }
+
+	@Override
+	protected void decode(ChannelHandlerContext ctx, ByteBuf originalIn, List<Object> out) throws Exception {
+
+		getLogger().debug("Processing new {} bytes, out list size: {}", originalIn.readableBytes(), out.size());
+		int oldOutSize = out.size();
+		originalIn.markReaderIndex();
+		ByteBuf in = null;
+		if (prevRemainingBytes != null) {
+			in = Unpooled.wrappedBuffer(prevRemainingBytes, originalIn);
+			prevRemainingBytes = null;
+		} else {
+			in = Unpooled.wrappedBuffer(originalIn);
+		}
+
+		getLogger().debug("In: {} -> {}", in.readerIndex(), in.writerIndex());
+		ByteBufInputStream inputStream = new ByteBufInputStream(in);
+		getLogger().debug("---> Decoding byte buffer size: " + in.readableBytes());
+		MessageUnpacker unpacker = MessagePack.newDefaultUnpacker(inputStream);
+
+		PuElement unpackedObject = this.continueUnpack(unpacker, in);
+		while (unpackedObject != null) {
+			out.add(unpackedObject);
+			unpackedObject = this.continueUnpack(unpacker, in);
+		}
+
+		if (in.readableBytes() > 0) {
+			getLogger().debug("Remaining {} bytes, current buffer {}, next format {}", in.readableBytes(), buffer,
+					this.nextFormat);
+			prevRemainingBytes = Unpooled.wrappedBuffer(in);
+		} else {
+			prevRemainingBytes = null;
+			getLogger().debug("Remaining 0 byte");
+		}
+		
+		if (out.size() == oldOutSize) {
+			originalIn.resetReaderIndex();
+		} else {
+			originalIn.readerIndex(Long.valueOf(unpacker.getTotalReadBytes()).intValue());
+			getLogger().debug("Read {} object(s): {}", out.size() - oldOutSize, out);
+		}
+	}
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
