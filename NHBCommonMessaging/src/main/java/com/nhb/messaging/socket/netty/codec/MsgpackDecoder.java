@@ -3,7 +3,7 @@ package com.nhb.messaging.socket.netty.codec;
 import java.util.List;
 
 import org.msgpack.core.MessageInsufficientBufferException;
-import org.msgpack.core.MessagePack;
+import org.msgpack.core.MessagePack.UnpackerConfig;
 import org.msgpack.core.MessageUnpacker;
 import org.msgpack.core.buffer.InputStreamBufferInput;
 
@@ -22,6 +22,11 @@ public class MsgpackDecoder extends ByteToMessageDecoder implements Loggable {
 		return new MsgpackDecoder();
 	}
 
+	private UnpackerConfig unpackerConfig = new UnpackerConfig();
+	{
+		unpackerConfig.withBufferSize(1024);
+	}
+
 	private MessageUnpacker unpacker = null;
 
 	@Override
@@ -31,7 +36,7 @@ public class MsgpackDecoder extends ByteToMessageDecoder implements Loggable {
 
 		ByteBufInputStream inputStream = new ByteBufInputStream(in);
 		if (this.unpacker == null) {
-			this.unpacker = MessagePack.newDefaultUnpacker(inputStream);
+			this.unpacker = this.unpackerConfig.newUnpacker(inputStream);
 		} else {
 			this.unpacker.reset(new InputStreamBufferInput(inputStream));
 		}
